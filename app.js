@@ -481,11 +481,15 @@ function viewHistory(id) {
 
 function exerciseList(q, group, act) {
   const needle = q.trim().toLowerCase();
+  // In the picker the most logged exercises come first, so the usual ones are one tap away
+  const used = new Map();
+  if (act) for (const w of S.workouts) for (const e of w.entries) used.set(e.exId, (used.get(e.exId) || 0) + 1);
+  const n = (e) => used.get(e.id) || 0;
   const list = S.exercises
     .filter((e) => !e.hidden && (!group || e.group === group) && e.name.toLowerCase().includes(needle))
-    .sort((a, b) => !a.name.toLowerCase().startsWith(needle) - !b.name.toLowerCase().startsWith(needle) || a.name.localeCompare(b.name, 'sv'));
+    .sort((a, b) => n(b) - n(a) || !a.name.toLowerCase().startsWith(needle) - !b.name.toLowerCase().startsWith(needle) || a.name.localeCompare(b.name, 'sv'));
   const rows = list.map((e) => {
-    const inner = `<div class="main"><div>${esc(e.name)}</div><div class="muted">${esc(e.group)}${e.bw ? ' · Kroppsvikt' : ''}</div></div><span class="chev">${act ? '+' : '›'}</span>`;
+    const inner = `<div class="main"><div>${esc(e.name)}</div><div class="muted">${esc(e.group)}${e.bw ? ' · Kroppsvikt' : ''}${n(e) ? ` · ${n(e)} pass` : ''}</div></div><span class="chev">${act ? '+' : '›'}</span>`;
     return act ? `<button class="item" data-act="pick" data-id="${e.id}">${inner}</button>` : `<a class="item" href="#/exercise/${e.id}">${inner}</a>`;
   });
   const exact = S.exercises.some((e) => !e.hidden && e.name.toLowerCase() === needle);
