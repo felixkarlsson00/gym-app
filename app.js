@@ -479,14 +479,18 @@ function viewHistory(id) {
   return out + `</div></div>`;
 }
 
+const RECENT = 'recent'; // picker tab: only exercises already logged (a search still covers everything)
+
 function exerciseList(q, group, act) {
   const needle = q.trim().toLowerCase();
+  const recent = group === RECENT;
+  if (recent) group = null;
   // In the picker the most logged exercises come first, so the usual ones are one tap away
   const used = new Map();
   if (act) for (const w of S.workouts) for (const e of w.entries) used.set(e.exId, (used.get(e.exId) || 0) + 1);
   const n = (e) => used.get(e.id) || 0;
   const list = S.exercises
-    .filter((e) => !e.hidden && (!group || e.group === group) && e.name.toLowerCase().includes(needle))
+    .filter((e) => !e.hidden && (!group || e.group === group) && (!recent || needle || n(e)) && e.name.toLowerCase().includes(needle))
     .sort((a, b) => n(b) - n(a) || !a.name.toLowerCase().startsWith(needle) - !b.name.toLowerCase().startsWith(needle) || a.name.localeCompare(b.name, 'sv'));
   const rows = list.map((e) => {
     const inner = `<div class="main"><div>${esc(e.name)}</div><div class="muted">${esc(e.group)}${e.bw ? ' · Kroppsvikt' : ''}${n(e) ? ` · ${n(e)} pass` : ''}</div></div><span class="chev">${act ? '+' : '›'}</span>`;
@@ -494,7 +498,7 @@ function exerciseList(q, group, act) {
   });
   const exact = S.exercises.some((e) => !e.hidden && e.name.toLowerCase() === needle);
   if (needle && !exact) rows.push(`<button class="item" data-act="create-ex"><div class="main"><div class="link">+ Skapa ”${esc(q.trim())}”</div><div class="muted">Ny egen övning${group ? ' i ' + esc(group) : ''}</div></div></button>`);
-  return rows.join('') || `<div class="empty">Inga övningar hittades.</div>`;
+  return rows.join('') || `<div class="empty">${recent ? 'Du har inte loggat några övningar än. Välj ”Alla” för att se hela listan.' : 'Inga övningar hittades.'}</div>`;
 }
 
 function viewExercises() {
@@ -545,7 +549,7 @@ function viewSettings() {
 // ---------- Exercise picker (bottom sheet) ----------
 
 function openPicker() {
-  ui.picker = { q: '', group: null };
+  ui.picker = { q: '', group: S.workouts.length ? RECENT : null };
   const sheet = $('#sheet');
   sheet.innerHTML = `<div class="sheet-body">
     <div class="card-head" style="margin:0"><h2>Lägg till övning</h2><button class="link" data-act="close-sheet">Stäng</button></div>
@@ -558,7 +562,8 @@ function openPicker() {
 }
 function refreshPicker() {
   const p = ui.picker;
-  $('#pick-chips').innerHTML = `<button class="chip${p.group ? '' : ' on'}" data-act="pick-group" data-g="">Alla</button>` +
+  $('#pick-chips').innerHTML = `<button class="chip${p.group === RECENT ? ' on' : ''}" data-act="pick-group" data-g="${RECENT}">Senaste</button>` +
+    `<button class="chip${p.group ? '' : ' on'}" data-act="pick-group" data-g="">Alla</button>` +
     GROUPS.map((g) => `<button class="chip${p.group === g ? ' on' : ''}" data-act="pick-group" data-g="${g}">${g}</button>`).join('');
   $('#pick-list').innerHTML = exerciseList(p.q, p.group, true);
 }
@@ -694,7 +699,7 @@ const ACTIONS = {
     // Re-creating a removed exercise brings the old one (and its history) back
     let ex = S.exercises.find((e) => e.name.toLowerCase() === name.toLowerCase());
     if (ex) ex.hidden = false;
-    else S.exercises.push(ex = { id: 'c-' + uid(), name, group: (inPicker && ui.picker.group) || 'Övrigt', custom: true });
+    else S.exercises.push(ex = { id: 'c-' + uid(), name, group: (inPicker && ui.picker.group !== RECENT && ui.picker.group) || 'Övrigt', custom: true });
     save();
     if (inPicker) return addExercise(ex.id);
     ui.exQ = '';
