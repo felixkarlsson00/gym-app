@@ -1,6 +1,6 @@
 // Offline support: serve from cache right away (gyms have bad reception),
 // refresh the cache in the background so the next launch gets the new version.
-const CACHE = 'gymlogg-v1';
+const CACHE = 'gymlogg-v2';
 const ASSETS = ['./', 'index.html', 'styles.css', 'app.js', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png'];
 
 self.addEventListener('install', (e) => {

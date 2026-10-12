@@ -4,13 +4,33 @@
 
 const KEY = 'gymlogg.v1';
 const GROUPS = ['Bröst', 'Rygg', 'Ben', 'Axlar', 'Armar', 'Bål', 'Övrigt'];
+// A trailing * marks a bodyweight exercise: the weight field is extra load (belt/vest), default 0.
 const DEFAULTS = {
-  'Bröst': ['Bänkpress', 'Lutande bänkpress', 'Hantelpress', 'Lutande hantelpress', 'Dips', 'Cable flyes', 'Armhävningar'],
-  'Rygg': ['Marklyft', 'Chins', 'Pull-ups', 'Skivstångsrodd', 'Hantelrodd', 'Latsdrag', 'Sittande kabelrodd'],
-  'Ben': ['Knäböj', 'Benpress', 'Rumänska marklyft', 'Bulgariska utfall', 'Utfall', 'Lårcurl', 'Benspark', 'Hip thrust', 'Vadpress'],
-  'Axlar': ['Militärpress', 'Axelpress med hantlar', 'Sidolyft', 'Face pulls', 'Omvända flyes'],
-  'Armar': ['Bicepscurl', 'Hammercurl', 'Skivstångscurl', 'Triceps pushdown', 'Skullcrushers', 'Smal bänkpress'],
-  'Bål': ['Plankan', 'Hängande benlyft', 'Cable crunch', 'Ab wheel'],
+  'Bröst': ['Bench Press', 'Incline Bench Press', 'Dumbbell Bench Press', 'Incline Dumbbell Press', 'Dumbbell Fly', 'Cable Fly',
+    'High-to-Low Cable Fly', 'Low-to-High Cable Fly', 'Machine Chest Press', 'Pec Deck', 'Dips*', 'Ring Dips*', 'Push-Up*'],
+  'Rygg': ['Deadlift', 'Pull-Up*', 'Chin-Up*', 'Neutral-Grip Pull-Up*', 'Muscle-Up*', 'Barbell Row', 'Dumbbell Row', 'T-Bar Row',
+    'Lat Pulldown', 'Seated Cable Row', 'Single-Arm Cable Row', 'Straight-Arm Pulldown', 'Inverted Row*', 'Back Extension*', 'Dumbbell Shrug'],
+  'Ben': ['Squat', 'Front Squat', 'Goblet Squat', 'Leg Press', 'Romanian Deadlift', 'Dumbbell Romanian Deadlift', 'Bulgarian Split Squat',
+    'Lunge', 'Walking Lunge', 'Leg Curl', 'Leg Extension', 'Hip Thrust', 'Calf Raise', 'Cable Pull-Through', 'Pistol Squat*', 'Nordic Curl*'],
+  'Axlar': ['Overhead Press', 'Dumbbell Shoulder Press', 'Arnold Press', 'Dumbbell Lateral Raise', 'Cable Lateral Raise',
+    'Dumbbell Front Raise', 'Face Pull', 'Reverse Fly', 'Cable Reverse Fly', 'Pike Push-Up*', 'Handstand Push-Up*'],
+  'Armar': ['Barbell Curl', 'Dumbbell Curl', 'Hammer Curl', 'Incline Dumbbell Curl', 'Cable Curl', 'Preacher Curl', 'Concentration Curl',
+    'Triceps Pushdown', 'Rope Pushdown', 'Overhead Cable Triceps Extension', 'Dumbbell Overhead Triceps Extension', 'Skull Crusher',
+    'Close-Grip Bench Press', 'Bench Dips*', 'Diamond Push-Up*'],
+  'Bål': ['Plank*', 'Hanging Leg Raise*', 'Hanging Knee Raise*', 'Toes-to-Bar*', 'Cable Crunch', 'Cable Woodchopper', 'Ab Wheel Rollout*',
+    'Sit-Up*', 'Russian Twist*', 'L-Sit*', 'Dragon Flag*'],
+};
+// The first version shipped Swedish names; logged sets are moved over to the English ones.
+const RENAMED = {
+  'Bänkpress': 'Bench Press', 'Lutande bänkpress': 'Incline Bench Press', 'Hantelpress': 'Dumbbell Bench Press',
+  'Lutande hantelpress': 'Incline Dumbbell Press', 'Cable flyes': 'Cable Fly', 'Armhävningar': 'Push-Up', 'Marklyft': 'Deadlift',
+  'Chins': 'Chin-Up', 'Pull-ups': 'Pull-Up', 'Skivstångsrodd': 'Barbell Row', 'Hantelrodd': 'Dumbbell Row', 'Latsdrag': 'Lat Pulldown',
+  'Sittande kabelrodd': 'Seated Cable Row', 'Knäböj': 'Squat', 'Benpress': 'Leg Press', 'Rumänska marklyft': 'Romanian Deadlift',
+  'Bulgariska utfall': 'Bulgarian Split Squat', 'Utfall': 'Lunge', 'Lårcurl': 'Leg Curl', 'Benspark': 'Leg Extension',
+  'Vadpress': 'Calf Raise', 'Militärpress': 'Overhead Press', 'Axelpress med hantlar': 'Dumbbell Shoulder Press',
+  'Sidolyft': 'Dumbbell Lateral Raise', 'Face pulls': 'Face Pull', 'Omvända flyes': 'Reverse Fly', 'Bicepscurl': 'Dumbbell Curl',
+  'Hammercurl': 'Hammer Curl', 'Skivstångscurl': 'Barbell Curl', 'Skullcrushers': 'Skull Crusher', 'Smal bänkpress': 'Close-Grip Bench Press',
+  'Plankan': 'Plank', 'Hängande benlyft': 'Hanging Leg Raise', 'Ab wheel': 'Ab Wheel Rollout',
 };
 
 const slug = (s) => 'x-' + s.toLowerCase().replace(/[^a-z0-9åäö]+/g, '-');
@@ -23,9 +43,23 @@ function load() {
   s.exercises = Array.isArray(s.exercises) ? s.exercises : [];
   s.workouts = Array.isArray(s.workouts) ? s.workouts : [];
   s.active = s.active || null;
-  const have = new Set(s.exercises.map((e) => e.id));
+
+  const remap = new Map(Object.entries(RENAMED).map(([from, to]) => [slug(from), slug(to)]));
+  s.exercises = s.exercises.filter((e) => !remap.has(e.id));
+  for (const w of s.active ? [...s.workouts, s.active] : s.workouts) {
+    for (const e of w.entries) if (remap.has(e.exId)) e.exId = remap.get(e.exId);
+  }
+
   for (const [group, names] of Object.entries(DEFAULTS)) {
-    for (const name of names) if (!have.has(slug(name))) s.exercises.push({ id: slug(name), name, group });
+    for (const raw of names) {
+      const bw = raw.endsWith('*'), name = bw ? raw.slice(0, -1) : raw;
+      const ex = s.exercises.find((e) => e.id === slug(name));
+      if (!ex) s.exercises.push({ id: slug(name), name, group, bw });
+      else {
+        ex.name = name;
+        if (ex.bw === undefined) ex.bw = bw; // keep the user's own choice once set
+      }
+    }
   }
   return s;
 }
@@ -61,7 +95,8 @@ const exName = (id) => (exById(id) || { name: 'Okänd övning' }).name;
 const sorted = () => [...S.workouts].sort((a, b) => b.start - a.start);
 const validSet = (s) => s.r > 0;
 const e1rm = (s) => (s.r === 1 ? s.w || 0 : (s.w || 0) * (1 + s.r / 30)); // Epley
-const setText = (s) => (s.w ? `${fmt(s.w)} kg × ${s.r}` : `${s.r} reps`);
+const isBW = (id) => !!(exById(id) || {}).bw;
+const setText = (s, exId) => (isBW(exId) ? `BW${s.w ? ' +' + fmt(s.w) + ' kg' : ''} × ${s.r}` : s.w ? `${fmt(s.w)} kg × ${s.r}` : `${s.r} reps`);
 
 function workoutStats(w) {
   let sets = 0, vol = 0;
@@ -112,6 +147,8 @@ function lastWeeks(n) {
 // One row per finished workout that contains the exercise, oldest first
 function exHistory(id) {
   const out = [];
+  // Bodyweight lifts are ranked by extra load (then reps); everything else by estimated 1RM
+  const score = isBW(id) ? (s) => s.w || 0 : e1rm;
   for (const w of sorted().reverse()) {
     for (const e of w.entries) {
       if (e.exId !== id) continue;
@@ -120,9 +157,9 @@ function exHistory(id) {
         if (!validSet(s)) continue;
         vol += (s.w || 0) * s.r;
         reps = Math.max(reps, s.r);
-        if (!best || e1rm(s) > e1rm(best)) best = s;
+        if (!best || score(s) > score(best) || (score(s) === score(best) && s.r > best.r)) best = s;
       }
-      if (best) out.push({ t: w.start, wid: w.id, sets: e.sets.filter(validSet), best, e1: e1rm(best), vol, reps });
+      if (best) out.push({ t: w.start, wid: w.id, sets: e.sets.filter(validSet), best, e1: score(best), vol, reps });
     }
   }
   return out;
@@ -269,12 +306,13 @@ function progressChart(id, hist, after) {
   const points = hist.map((h) => ({
     t: h.t,
     v: bodyweight ? h.reps : h.e1,
-    tip: `${fmtDate(h.t)}<br><b>${bodyweight ? h.reps + ' reps' : fmt(Math.round(h.e1 * 10) / 10) + ' kg'}</b> · ${setText(h.best)}`,
+    tip: `${fmtDate(h.t)}<br><b>${bodyweight ? h.reps + ' reps' : fmt(Math.round(h.e1 * 10) / 10) + ' kg'}</b> · ${setText(h.best, id)}`,
   }));
   after.push(() => lineChart($('#c-prog'), points, unit));
-  return `<p class="muted">${bodyweight ? 'Flest reps i ett set per pass' : 'Beräknat 1RM (kg) per pass'}</p>
+  const extra = isBW(id);
+  return `<p class="muted">${bodyweight ? 'Flest reps i ett set per pass' : extra ? 'Tyngsta extra vikt (kg) per pass' : 'Beräknat 1RM (kg) per pass'}</p>
     <div class="chart" id="c-prog"></div>
-    ${tableView(['Datum', 'Bästa set', bodyweight ? 'Reps' : '1RM'], [...hist].reverse().map((h) => [fmtDate(h.t), setText(h.best), bodyweight ? h.reps : fmt(Math.round(h.e1 * 10) / 10)]))}`;
+    ${tableView(['Datum', 'Bästa set', bodyweight ? 'Reps' : extra ? 'Extra kg' : '1RM'], [...hist].reverse().map((h) => [fmtDate(h.t), setText(h.best, id), bodyweight ? h.reps : fmt(Math.round(h.e1 * 10) / 10)]))}`;
 }
 
 // ---------- Views ----------
@@ -334,7 +372,7 @@ function viewHome(arg, after) {
     const h = exHistory(id);
     if (!h.length) return '';
     const best = h.reduce((a, b) => (b.e1 > a.e1 || (b.e1 === a.e1 && b.reps > a.reps) ? b : a));
-    return `<a class="item" href="#/exercise/${id}"><div class="main"><div>${esc(exName(id))}</div><div class="muted">${fmtDate(best.t)}</div></div><div class="side">${setText(best.best)}</div></a>`;
+    return `<a class="item" href="#/exercise/${id}"><div class="main"><div>${esc(exName(id))}</div><div class="muted">${fmtDate(best.t)}</div></div><div class="side">${setText(best.best, id)}</div></a>`;
   }).join('');
 
   return `${head}${start}
@@ -375,11 +413,12 @@ function viewWorkout() {
 
   const entries = a.entries.map((e, i) => {
     const prev = lastEntry(e.exId);
+    const bw = isBW(e.exId);
     const rows = e.sets.map((s, j) => {
       const p = prev ? prev.sets[Math.min(j, prev.sets.length - 1)] : null;
       return `<div class="setrow${s.done ? ' done' : ''}" data-s="${j}">
         <span class="n">${j + 1}</span>
-        <input type="text" inputmode="decimal" data-f="w" value="${s.w ?? ''}" placeholder="${p ? p.w || 0 : ''}" aria-label="Vikt">
+        <input type="text" inputmode="decimal" data-f="w" value="${bw && !s.w ? '' : s.w ?? ''}" placeholder="${bw ? (p && p.w ? p.w : 'BW') : p ? p.w || 0 : ''}" aria-label="${bw ? 'Extra vikt' : 'Vikt'}">
         <input type="text" inputmode="numeric" data-f="r" value="${s.r ?? ''}" placeholder="${p ? p.r : ''}" aria-label="Reps">
         <button class="check" data-act="done" aria-label="Klart">✓</button>
         <button class="x" data-act="rm-set" aria-label="Ta bort set">×</button>
@@ -387,8 +426,8 @@ function viewWorkout() {
     }).join('');
     return `<section class="card entry" data-i="${i}">
       <header><h3>${esc(exName(e.exId))}</h3><button class="link danger" data-act="rm-entry">Ta bort</button></header>
-      <div class="prev">${prev ? 'Senast: ' + prev.sets.map(setText).join(' · ') : 'Första gången du loggar övningen'}</div>
-      <div class="setrow head"><span>Set</span><span>Kg</span><span>Reps</span><span></span><span></span></div>
+      <div class="prev">${prev ? 'Senast: ' + prev.sets.map((s) => setText(s, e.exId)).join(' · ') : 'Första gången du loggar övningen'}${bw ? '<br>Kroppsvikt – lämna vikten tom eller fyll i extra kg' : ''}</div>
+      <div class="setrow head"><span>Set</span><span>${bw ? '+ Kg' : 'Kg'}</span><span>Reps</span><span></span><span></span></div>
       ${rows}
       <button class="link" data-act="add-set">+ Lägg till set</button>
     </section>`;
@@ -396,11 +435,11 @@ function viewWorkout() {
 
   return `<div class="wk-head">
       <input class="title" type="text" data-f="name" value="${esc(a.name)}" aria-label="Passets namn">
-      <div class="wk-meta"><span>⏱ <span id="elapsed">${clock(Date.now() - a.start)}</span></span><span id="rest"></span><button class="btn small" data-act="finish">Avsluta</button></div>
+      <div class="wk-meta"><span class="timer"><small>Passtid</small><b id="elapsed">${clock(Date.now() - a.start)}</b></span><span id="rest"></span><button class="btn small" data-act="finish">Avsluta</button></div>
     </div>
     ${entries || `<div class="card empty"><p>Lägg till din första övning för att börja logga.</p></div>`}
     <button class="btn ghost" data-act="add-ex">+ Lägg till övning</button>
-    <button class="btn danger" data-act="discard">Avbryt pass</button>`;
+    <button class="btn danger" data-act="discard">Ta bort pass</button>`;
 }
 
 function viewHistory(id) {
@@ -417,8 +456,8 @@ function viewHistory(id) {
       </div>
       ${w.entries.map((e) => `<div class="card">
         <div class="card-head"><h2><a href="#/exercise/${e.exId}">${esc(exName(e.exId))}</a></h2><a class="chev" href="#/exercise/${e.exId}">›</a></div>
-        <table><tr><th>Set</th><th class="num">Kg</th><th class="num">Reps</th></tr>
-        ${e.sets.map((s, i) => `<tr><td>${i + 1}</td><td class="num">${fmt(s.w || 0)}</td><td class="num">${s.r}</td></tr>`).join('')}</table>
+        <table><tr><th>Set</th><th class="num">${isBW(e.exId) ? 'Extra kg' : 'Kg'}</th><th class="num">Reps</th></tr>
+        ${e.sets.map((s, i) => `<tr><td>${i + 1}</td><td class="num">${isBW(e.exId) ? (s.w ? '+' + fmt(s.w) : 'BW') : fmt(s.w || 0)}</td><td class="num">${s.r}</td></tr>`).join('')}</table>
       </div>`).join('')}
       <button class="btn ghost" data-act="start" data-from="${w.id}">Kör passet igen</button>
       <button class="btn danger" data-act="del-workout" data-id="${w.id}">Ta bort pass</button>`;
@@ -443,13 +482,13 @@ function viewHistory(id) {
 function exerciseList(q, group, act) {
   const needle = q.trim().toLowerCase();
   const list = S.exercises
-    .filter((e) => (!group || e.group === group) && e.name.toLowerCase().includes(needle))
-    .sort((a, b) => a.name.localeCompare(b.name, 'sv'));
+    .filter((e) => !e.hidden && (!group || e.group === group) && e.name.toLowerCase().includes(needle))
+    .sort((a, b) => !a.name.toLowerCase().startsWith(needle) - !b.name.toLowerCase().startsWith(needle) || a.name.localeCompare(b.name, 'sv'));
   const rows = list.map((e) => {
-    const inner = `<div class="main"><div>${esc(e.name)}</div><div class="muted">${esc(e.group)}</div></div><span class="chev">${act ? '+' : '›'}</span>`;
+    const inner = `<div class="main"><div>${esc(e.name)}</div><div class="muted">${esc(e.group)}${e.bw ? ' · Kroppsvikt' : ''}</div></div><span class="chev">${act ? '+' : '›'}</span>`;
     return act ? `<button class="item" data-act="pick" data-id="${e.id}">${inner}</button>` : `<a class="item" href="#/exercise/${e.id}">${inner}</a>`;
   });
-  const exact = S.exercises.some((e) => e.name.toLowerCase() === needle);
+  const exact = S.exercises.some((e) => !e.hidden && e.name.toLowerCase() === needle);
   if (needle && !exact) rows.push(`<button class="item" data-act="create-ex"><div class="main"><div class="link">+ Skapa ”${esc(q.trim())}”</div><div class="muted">Ny egen övning${group ? ' i ' + esc(group) : ''}</div></div></button>`);
   return rows.join('') || `<div class="empty">Inga övningar hittades.</div>`;
 }
@@ -464,19 +503,26 @@ function viewExercise(id, after) {
   const ex = exById(id);
   if (!ex) return `<div class="top"><a class="back" href="#/exercises">‹</a><h1>Övningen finns inte</h1></div>`;
   const hist = exHistory(id);
-  const head = `<div class="top"><a class="back" href="#/exercises" aria-label="Tillbaka">‹</a><h1>${esc(ex.name)}</h1></div><p class="sub">${esc(ex.group)}</p>`;
-  if (!hist.length) return `${head}<div class="card empty"><p>Du har inte loggat den här övningen än.</p></div>`;
+  const head = `<div class="top"><a class="back" href="#/exercises" aria-label="Tillbaka">‹</a><h1>${esc(ex.name)}</h1></div><p class="sub">${esc(ex.group)}${ex.bw ? ' · Kroppsvikt' : ''}</p>`;
+  const manage = `<div class="card"><h2>Hantera övning</h2>
+      <button class="item" data-act="toggle-bw" data-id="${ex.id}"><div class="main"><div>Kroppsviktsövning</div><div class="muted">Vikten räknas som extra vikt utöver kroppsvikten</div></div><span class="side">${ex.bw ? 'På' : 'Av'}</span></button>
+      <button class="btn danger" data-act="del-ex" data-id="${ex.id}">Ta bort övning</button>
+    </div>`;
+  if (!hist.length) return `${head}<div class="card empty"><p>Du har inte loggat den här övningen än.</p></div>${manage}`;
   const best = hist.reduce((a, b) => (b.e1 > a.e1 ? b : a));
   const heavy = Math.max(...hist.flatMap((h) => h.sets.map((s) => s.w || 0)));
+  const tile = (label, value) => `<div class="card tile"><div class="label">${label}</div><div class="value" style="font-size:19px">${value}</div></div>`;
   return `${head}
     <div class="tiles" style="grid-template-columns:1fr 1fr 1fr">
-      <div class="card tile"><div class="label">Bästa 1RM</div><div class="value" style="font-size:19px">${fmt(Math.round(best.e1 * 10) / 10)} <small>kg</small></div></div>
-      <div class="card tile"><div class="label">Tyngsta set</div><div class="value" style="font-size:19px">${fmt(heavy)} <small>kg</small></div></div>
-      <div class="card tile"><div class="label">Pass</div><div class="value" style="font-size:19px">${hist.length}</div></div>
+      ${ex.bw
+        ? tile('Flest reps', Math.max(...hist.map((h) => h.reps))) + tile('Mest extra vikt', heavy ? `+${fmt(heavy)} <small>kg</small>` : 'BW')
+        : tile('Bästa 1RM', `${fmt(Math.round(best.e1 * 10) / 10)} <small>kg</small>`) + tile('Tyngsta set', `${fmt(heavy)} <small>kg</small>`)}
+      ${tile('Pass', hist.length)}
     </div>
     <div class="card"><h2>Utveckling</h2>${progressChart(id, hist, after)}</div>
     <div class="card"><h2>Historik</h2><div class="list">${[...hist].reverse().map((h) => `
-      <a class="item" href="#/history/${h.wid}"><div class="main"><div>${fmtDate(h.t)}</div><div class="muted">${h.sets.map(setText).join(' · ')}</div></div><span class="chev">›</span></a>`).join('')}</div></div>`;
+      <a class="item" href="#/history/${h.wid}"><div class="main"><div>${fmtDate(h.t)}</div><div class="muted">${h.sets.map((s) => setText(s, id)).join(' · ')}</div></div><span class="chev">›</span></a>`).join('')}</div></div>
+    ${manage}`;
 }
 
 function viewSettings() {
@@ -606,8 +652,25 @@ async function importData(file) {
 const ACTIONS = {
   start: (el) => startWorkout(el.dataset.from),
   finish: finishWorkout,
+  'toggle-bw'(el) {
+    const ex = exById(el.dataset.id);
+    ex.bw = !ex.bw;
+    save();
+    render();
+  },
+  'del-ex'(el) {
+    if (!confirm('Ta bort övningen från listan? Pass du redan loggat påverkas inte.')) return;
+    const used = [...S.workouts, ...(S.active ? [S.active] : [])].some((w) => w.entries.some((e) => e.exId === el.dataset.id));
+    const ex = exById(el.dataset.id);
+    // Built-in or already logged exercises are only hidden, so history keeps its names
+    if (ex.custom && !used) S.exercises = S.exercises.filter((e) => e !== ex);
+    else ex.hidden = true;
+    save();
+    toast('Övningen borttagen');
+    go('#/exercises');
+  },
   discard() {
-    if (!confirm('Avbryta passet? Det du loggat i passet försvinner.')) return;
+    if (!confirm('Ta bort passet? Det du loggat i passet försvinner.')) return;
     S.active = null;
     ui.rest = 0;
     save();
@@ -624,8 +687,10 @@ const ACTIONS = {
     const inPicker = !$('#sheet').hidden;
     const name = (inPicker ? ui.picker.q : ui.exQ).trim();
     if (!name) return;
-    const ex = { id: 'c-' + uid(), name, group: (inPicker && ui.picker.group) || 'Övrigt', custom: true };
-    S.exercises.push(ex);
+    // Re-creating a removed exercise brings the old one (and its history) back
+    let ex = S.exercises.find((e) => e.name.toLowerCase() === name.toLowerCase());
+    if (ex) ex.hidden = false;
+    else S.exercises.push(ex = { id: 'c-' + uid(), name, group: (inPicker && ui.picker.group) || 'Övrigt', custom: true });
     save();
     if (inPicker) return addExercise(ex.id);
     ui.exQ = '';
