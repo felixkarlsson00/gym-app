@@ -172,6 +172,41 @@ function lastEntry(exId) {
   return null;
 }
 
+// Record badge per set, as out[entryIndex][setIndex] = 'PR' | 'YR' | 'MR' | ''.
+// A set is a record when no earlier set of that exercise had at least the same weight for at least
+// the same reps: ever (PR), in the last 365 days (YR) or in the last 30 days (MR). Only the highest
+// one is shown, and there must be earlier workouts in that period to beat.
+const DAY = 864e5;
+function setBadges(workout, live) {
+  const hist = new Map(), same = new Map();
+  return workout.entries.map((e) => {
+    if (!hist.has(e.exId)) {
+      const sets = [];
+      for (const w of S.workouts) {
+        if (w.id === workout.id || w.start >= workout.start) continue;
+        for (const x of w.entries) if (x.exId === e.exId) for (const s of x.sets) if (validSet(s)) sets.push({ t: w.start, w: s.w || 0, r: s.r });
+      }
+      hist.set(e.exId, sets);
+      same.set(e.exId, []);
+    }
+    const before = hist.get(e.exId), earlier = same.get(e.exId);
+    return e.sets.map((s) => {
+      if (!validSet(s) || (live && !s.done)) return '';
+      const beaten = (p) => p.w >= (s.w || 0) && p.r >= s.r;
+      const repeat = earlier.some(beaten);
+      earlier.push({ w: s.w || 0, r: s.r });
+      if (repeat) return '';
+      for (const [label, days] of [['PR', Infinity], ['YR', 365], ['MR', 30]]) {
+        const pool = before.filter((p) => p.t >= workout.start - days * DAY);
+        if (pool.length && !pool.some(beaten)) return label;
+      }
+      return '';
+    });
+  });
+}
+const badgeHtml = (b) => (b ? `<i class="rec ${b}">${b}</i>` : '');
+const BADGE_TEXT = { PR: 'Nytt personligt rekord!', YR: 'Nytt årsrekord!', MR: 'Nytt månadsrekord!' };
+
 let toastTimer = 0;
 function toast(msg) {
   const el = $('#toast');
@@ -411,13 +446,14 @@ function viewWorkout() {
         </button>`).join('')}</div></div>` : ''}`;
   }
 
+  const badges = setBadges(a, true);
   const entries = a.entries.map((e, i) => {
     const prev = lastEntry(e.exId);
     const bw = isBW(e.exId);
     const rows = e.sets.map((s, j) => {
       const p = prev ? prev.sets[Math.min(j, prev.sets.length - 1)] : null;
       return `<div class="setrow${s.done ? ' done' : ''}" data-s="${j}">
-        <span class="n">${j + 1}</span>
+        <span class="n">${j + 1}${badgeHtml(badges[i][j])}</span>
         <input type="text" inputmode="decimal" data-f="w" value="${bw && !s.w ? '' : s.w ?? ''}" placeholder="${bw ? (p && p.w ? p.w : 'BW') : p ? p.w || 0 : ''}" aria-label="${bw ? 'Extra vikt' : 'Vikt'}">
         <input type="text" inputmode="numeric" data-f="r" value="${s.r ?? ''}" placeholder="${p ? p.r : ''}" aria-label="Reps">
         <button class="check" data-act="done" aria-label="Klart">✓</button>
@@ -447,6 +483,7 @@ function viewHistory(id) {
     const w = S.workouts.find((x) => x.id === id);
     if (!w) return `<div class="top"><a class="back" href="#/history">‹</a><h1>Passet finns inte</h1></div>`;
     const st = workoutStats(w);
+    const badges = setBadges(w);
     return `<div class="top"><a class="back" href="#/history" aria-label="Tillbaka">‹</a><h1>${esc(w.name)}</h1></div>
       <p class="sub">${fmtDate(w.start, true)} kl. ${new Date(w.start).toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' })}</p>
       <div class="tiles" style="grid-template-columns:1fr 1fr 1fr">
@@ -454,10 +491,10 @@ function viewHistory(id) {
         <div class="card tile"><div class="label">Set</div><div class="value" style="font-size:19px">${st.sets}</div></div>
         <div class="card tile"><div class="label">Volym</div><div class="value" style="font-size:19px">${compact(Math.round(st.vol))} <small>kg</small></div></div>
       </div>
-      ${w.entries.map((e) => `<div class="card">
+      ${w.entries.map((e, k) => `<div class="card">
         <div class="card-head"><h2><a href="#/exercise/${e.exId}">${esc(exName(e.exId))}</a></h2><a class="chev" href="#/exercise/${e.exId}">›</a></div>
         <table><tr><th>Set</th><th class="num">${isBW(e.exId) ? 'Extra kg' : 'Kg'}</th><th class="num">Reps</th></tr>
-        ${e.sets.map((s, i) => `<tr><td>${i + 1}</td><td class="num">${isBW(e.exId) ? (s.w ? '+' + fmt(s.w) : 'BW') : fmt(s.w || 0)}</td><td class="num">${s.r}</td></tr>`).join('')}</table>
+        ${e.sets.map((s, i) => `<tr><td>${i + 1} ${badgeHtml(badges[k][i])}</td><td class="num">${isBW(e.exId) ? (s.w ? '+' + fmt(s.w) : 'BW') : fmt(s.w || 0)}</td><td class="num">${s.r}</td></tr>`).join('')}</table>
       </div>`).join('')}
       <button class="btn ghost" data-act="start" data-from="${w.id}">Kör passet igen</button>
       <button class="btn danger" data-act="del-workout" data-id="${w.id}">Ta bort pass</button>`;
@@ -630,8 +667,7 @@ function finishWorkout() {
 }
 
 function addExercise(id) {
-  const prev = lastEntry(id);
-  S.active.entries.push({ exId: id, sets: emptySets(prev ? prev.sets.length : 3) });
+  S.active.entries.push({ exId: id, sets: emptySets(1) });
   save();
   closeSheet();
   render();
@@ -708,7 +744,7 @@ const ACTIONS = {
   'add-set'(el) {
     const e = S.active.entries[el.closest('.entry').dataset.i];
     const last = e.sets[e.sets.length - 1];
-    e.sets.push({ w: last ? last.w : null, r: null, done: false });
+    e.sets.push({ w: last ? last.w : null, r: last ? last.r : null, done: false });
     save();
     render();
   },
@@ -739,6 +775,8 @@ const ACTIONS = {
     s.done = !s.done;
     save();
     render();
+    const b = s.done && setBadges(S.active, true)[el.closest('.entry').dataset.i][j];
+    if (b) toast(BADGE_TEXT[b]);
   },
   metric(el) {
     ui.metric = el.dataset.v;
