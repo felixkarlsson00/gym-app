@@ -178,14 +178,15 @@ function exHistory(id) {
   for (const w of sorted().reverse()) {
     for (const e of w.entries) {
       if (e.exId !== id) continue;
-      let best = null, vol = 0, reps = 0;
+      let best = null, top = null, vol = 0, reps = 0;
       for (const s of e.sets) {
         if (!validSet(s)) continue;
+        if (!top || (s.w || 0) > (top.w || 0) || ((s.w || 0) === (top.w || 0) && s.r > top.r)) top = s;
         vol += Math.max(0, s.w || 0) * s.r;
         reps = Math.max(reps, s.r);
         if (!best || score(s) > score(best) || (score(s) === score(best) && s.r > best.r)) best = s;
       }
-      if (best) out.push({ t: w.start, wid: w.id, sets: e.sets.filter(validSet), best, e1: score(best), vol, reps });
+      if (best) out.push({ t: w.start, wid: w.id, sets: e.sets.filter(validSet), best, top, e1: score(best), vol, reps });
     }
   }
   return out;
@@ -304,7 +305,7 @@ function barChart(el, data, { integer = false } = {}) {
 }
 
 // points: [{ t, v, tip }] sorted by time
-function lineChart(el, points, unit) {
+function lineChart(el, points) {
   if (!el) return;
   const W = el.clientWidth || 320, H = 180, m = { l: 34, r: 46, t: 26, b: 22 };
   const iw = W - m.l - m.r, ih = H - m.t - m.b;
@@ -360,20 +361,21 @@ function tableView(head, rows) {
   </table></details>`;
 }
 
-// Progress chart for one exercise; falls back to max reps for bodyweight-only lifts
+// Progress chart for one exercise: the heaviest set of each workout, as logged.
+// Falls back to max reps when the exercise has only ever been done without weight.
 function progressChart(id, hist, after) {
-  const bodyweight = hist.every((h) => h.e1 === 0);
-  const unit = bodyweight ? 'reps' : 'kg';
+  const repsOnly = hist.every((h) => !h.top.w);
+  const extra = isBW(id);
+  const value = (h) => (repsOnly ? h.reps : h.top.w);
   const points = hist.map((h) => ({
     t: h.t,
-    v: bodyweight ? h.reps : h.e1,
-    tip: `${fmtDate(h.t)}<br><b>${bodyweight ? h.reps + ' reps' : fmt(Math.round(h.e1 * 10) / 10) + ' kg'}</b> · ${setText(h.best, id)}`,
+    v: value(h),
+    tip: `${fmtDate(h.t)}<br><b>${setText(repsOnly ? h.best : h.top, id)}</b>`,
   }));
-  after.push(() => lineChart($('#c-prog'), points, unit));
-  const extra = isBW(id);
-  return `<p class="muted">${bodyweight ? 'Flest reps i ett set per pass' : extra ? 'Tyngsta extra vikt (kg) per pass' : 'Beräknat 1RM (kg) per pass'}</p>
+  after.push(() => lineChart($('#c-prog'), points));
+  return `<p class="muted">${repsOnly ? 'Flest reps i ett set per pass' : extra ? 'Tyngsta extra vikt (kg) per pass' : 'Tyngsta set (kg) per pass'}</p>
     <div class="chart" id="c-prog"></div>
-    ${tableView(['Datum', 'Bästa set', bodyweight ? 'Reps' : extra ? 'Extra kg' : '1RM'], [...hist].reverse().map((h) => [fmtDate(h.t), setText(h.best, id), bodyweight ? h.reps : fmt(Math.round(h.e1 * 10) / 10)]))}`;
+    ${tableView(['Datum', repsOnly ? 'Bästa set' : 'Tyngsta set', repsOnly ? 'Reps' : extra ? 'Extra kg' : 'Kg'], [...hist].reverse().map((h) => [fmtDate(h.t), setText(repsOnly ? h.best : h.top, id), fmt(value(h))]))}`;
 }
 
 // ---------- Views ----------
@@ -436,6 +438,14 @@ function viewHome(arg, after) {
     return `<a class="item" href="#/exercise/${id}"><div class="main"><div>${esc(exName(id))}</div><div class="muted">${fmtDate(best.t)}</div></div><div class="side">${setText(best.best, id)}</div></a>`;
   }).join('');
 
+  // Estimated 1RM (Epley) from the best set ever, for the most trained weighted exercises
+  const oneRm = trained.filter((id) => !isBW(id)).slice(0, 8).map((id) => {
+    const h = exHistory(id);
+    const best = h.length && h.reduce((a, b) => (b.e1 > a.e1 ? b : a));
+    if (!best || !best.e1) return '';
+    return `<a class="item" href="#/exercise/${id}"><div class="main"><div>${esc(exName(id))}</div><div class="muted">${setText(best.best, id)} · ${fmtDate(best.t)}</div></div><div class="side"><b>${fmt(Math.round(best.e1 * 10) / 10)} kg</b></div></a>`;
+  }).join('');
+
   return `${head}${start}
     <div class="tiles">
       <div class="card tile"><div class="label">Pass denna vecka</div><div class="value">${cur.n}</div><div class="muted">Förra veckan: ${prev.n}</div></div>
@@ -456,6 +466,7 @@ function viewHome(arg, after) {
       <div style="height:10px"></div>
       ${hist.length ? progressChart(ui.exId, hist, after) : ''}
     </div>
+    ${oneRm ? `<div class="card"><h2>Beräknat 1RM</h2><p class="muted" style="margin:-6px 0 4px">Uppskattat max för 1 rep, räknat på ditt bästa set</p><div class="list">${oneRm}</div></div>` : ''}
     <div class="card"><h2>Personbästa</h2><div class="list">${prs}</div></div>
     <div class="card"><div class="card-head"><h2>Senaste pass</h2><a class="link" href="#/history">Visa alla</a></div><div class="list">${ws.slice(0, 3).map(workoutItem).join('')}</div></div>`;
 }
@@ -787,16 +798,19 @@ function importStrengthLog(text, auto) {
   else go('#/history');
 }
 
-// The StrengthLog history shipped with the app is loaded once per device. The flag lives outside
-// the app data so that deleting a workout, or all data, does not bring the history back.
-const SEED_KEY = 'gymlogg.seeded';
+// The StrengthLog history shipped with the app is loaded once per device and once more whenever
+// SEED.version changes (the file gets a new name so the offline cache cannot serve the old one).
+// The flag lives outside the app data so that deleting all data does not bring the history back.
+const SEED = { key: 'gymlogg.seeded', version: '2', file: 'strengthlog-2.csv' };
 function seedHistory() {
-  if (localStorage.getItem(SEED_KEY)) return;
-  fetch('strengthlog.csv')
+  if (localStorage.getItem(SEED.key) === SEED.version) return;
+  fetch(SEED.file)
     .then((res) => (res.ok ? res.text() : Promise.reject()))
     .then((text) => {
+      // A corrected file replaces what an earlier version imported
+      S.workouts = S.workouts.filter((w) => !String(w.id).startsWith('sl-'));
       importStrengthLog(text, true);
-      localStorage.setItem(SEED_KEY, '1');
+      localStorage.setItem(SEED.key, SEED.version);
     })
     .catch(() => { /* offline or no file: try again next launch */ });
 }
