@@ -51,6 +51,10 @@ const RENAMED = {
 // StrengthLog names that are the same exercise as one in the list above
 const SL_ALIAS = { 'bar dip': 'Dips', 'bar muscle-up': 'Muscle-Up', 'straight arm pulldowns': 'Straight Arm Lat Pulldown' };
 
+// StrengthLog workouts that were never closed get an end time hours or days later.
+// Anything over 2 h is treated as forgotten and counted as a 1 h workout.
+const slEnd = (start, end) => (end > start && end - start <= 2 * 36e5 ? end : start + 36e5);
+
 const slug = (s) => 'x-' + s.toLowerCase().replace(/[^a-z0-9åäö]+/g, '-');
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 
@@ -61,6 +65,8 @@ function load() {
   s.exercises = Array.isArray(s.exercises) ? s.exercises : [];
   s.workouts = Array.isArray(s.workouts) ? s.workouts : [];
   s.active = s.active || null;
+
+  for (const w of s.workouts) if (String(w.id).startsWith('sl-')) w.end = slEnd(w.start, w.end);
 
   const remap = new Map(Object.entries(RENAMED).map(([from, to]) => [slug(from), slug(to)]));
   s.exercises = s.exercises.filter((e) => !remap.has(e.id));
@@ -738,7 +744,7 @@ function parseCsv(text) {
 }
 
 // StrengthLog CSV export: one row per set. Adds the workouts to the history (never replaces).
-function importStrengthLog(text) {
+function importStrengthLog(text, auto) {
   const rows = parseCsv(text.replace(/^﻿/, ''));
   const head = rows.shift() || [];
   const col = Object.fromEntries(head.map((h, i) => [h.trim(), i]));
@@ -764,9 +770,7 @@ function importStrengthLog(text) {
     }
     let w = workouts.get(start);
     if (!w) {
-      // Workouts left open in StrengthLog get an end time days later; treat anything over 5 h as unknown
-      const end = parseInt(get(r, 'end'), 10);
-      w = { id: 'sl-' + start, name: get(r, 'workout') || 'Pass', start, end: end > start && end - start <= 5 * 36e5 ? end : null, entries: [] };
+      w = { id: 'sl-' + start, name: get(r, 'workout') || 'Pass', start, end: slEnd(start, parseInt(get(r, 'end'), 10)), entries: [] };
       workouts.set(start, w);
     }
     let entry = w.entries[w.entries.length - 1];
@@ -775,11 +779,26 @@ function importStrengthLog(text) {
     entry.sets.push({ w: extra ? num(extra) : assist ? -num(assist) : num(get(r, 'weight')), r: reps });
   }
 
-  if (!workouts.size) return toast('Inga nya pass att importera');
+  if (!workouts.size) return auto || toast('Inga nya pass att importera');
   S.workouts.push(...workouts.values());
   save();
   toast(`${workouts.size} pass importerade` + (newExercises ? ` · ${newExercises} nya övningar` : ''));
-  go('#/history');
+  if (auto) render();
+  else go('#/history');
+}
+
+// The StrengthLog history shipped with the app is loaded once per device. The flag lives outside
+// the app data so that deleting a workout, or all data, does not bring the history back.
+const SEED_KEY = 'gymlogg.seeded';
+function seedHistory() {
+  if (localStorage.getItem(SEED_KEY)) return;
+  fetch('strengthlog.csv')
+    .then((res) => (res.ok ? res.text() : Promise.reject()))
+    .then((text) => {
+      importStrengthLog(text, true);
+      localStorage.setItem(SEED_KEY, '1');
+    })
+    .catch(() => { /* offline or no file: try again next launch */ });
 }
 
 const ACTIONS = {
@@ -943,3 +962,4 @@ if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.
 }
 
 render();
+seedHistory();
