@@ -131,6 +131,19 @@ input:focus, select:focus { border-color: var(--accent); }
 .tile .value { font-size: 26px; font-weight: 600; line-height: 1.2; }
 .tile .value small { font-size: 14px; font-weight: 500; color: var(--ink2); }
 
+.tiles.three { grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.tiles.three .card { padding: 10px; }
+.tiles.three .value { font-size: 20px; }
+.tiles.three .label, .tiles.three .muted { font-size: 12px; }
+.section { font-size: 20px; margin-top: 10px; }
+.chips.sticky { position: sticky; top: 0; z-index: 3; background: var(--bg); padding: calc(6px + env(safe-area-inset-top)) 0 6px; margin: -6px 0; }
+
+/* Horizontal bars (sets per muscle group) */
+.hbar { display: grid; grid-template-columns: 56px 1fr auto; align-items: center; gap: 10px; padding: 5px 0; font-size: 14px; }
+.hbar-track { display: block; }
+.hbar-fill { display: block; height: 12px; min-width: 2px; background: var(--accent); border-radius: 0 4px 4px 0; }
+.hbar-val { font-variant-numeric: tabular-nums; min-width: 86px; text-align: right; }
+
 /* Segmented control */
 .seg { display: inline-flex; background: var(--field); border-radius: 9px; padding: 2px; }
 .seg button { padding: 5px 12px; border-radius: 7px; font-size: 13px; color: var(--ink2); }

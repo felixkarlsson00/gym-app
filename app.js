@@ -100,7 +100,7 @@ function saveSoon() {
 }
 
 // UI-only state (not persisted)
-const ui = { metric: 'n', exId: null, rest: 0, picker: { q: '', group: null }, exQ: '' };
+const ui = { metric: 'n', period: 'all', exId: null, rest: 0, picker: { q: '', group: null }, exQ: '' };
 
 // ---------- Helpers ----------
 
@@ -269,7 +269,7 @@ function attachHover(el, svg, pick) {
 }
 
 // data: [{ label, v, tip }]
-function barChart(el, data, { integer = false } = {}) {
+function barChart(el, data, { integer = false, every = Math.ceil(data.length / 6) } = {}) {
   if (!el) return;
   const W = el.clientWidth || 320, H = 170, m = { l: 34, r: 6, t: 26, b: 22 };
   const iw = W - m.l - m.r, ih = H - m.t - m.b;
@@ -278,7 +278,6 @@ function barChart(el, data, { integer = false } = {}) {
   const top = Math.ceil(max / step) * step;
   const y = (v) => m.t + ih - (v / top) * ih;
   const band = iw / data.length, bw = Math.min(24, band - 2);
-  const every = Math.ceil(data.length / 6);
 
   let g = '';
   for (let v = 0; v <= top + step / 2; v += step) {
@@ -389,6 +388,11 @@ function workoutItem(w) {
   </a>`;
 }
 
+const MONTHS = ['jan', 'feb', 'mar', 'apr', 'maj', 'jun', 'jul', 'aug', 'sep', 'okt', 'nov', 'dec'];
+const WEEKDAYS = ['Mån', 'Tis', 'Ons', 'Tors', 'Fre', 'Lör', 'Sön'];
+const tons = (kg) => (kg >= 1000 ? `${fmt(Math.round(kg / 100) / 10)} <small>ton</small>` : `${fmt(Math.round(kg))} <small>kg</small>`);
+const tile = (label, value, sub) => `<div class="card tile"><div class="label">${label}</div><div class="value">${value}</div>${sub ? `<div class="muted">${sub}</div>` : ''}</div>`;
+
 function viewHome(arg, after) {
   const ws = sorted();
   const start = S.active
@@ -400,74 +404,162 @@ function viewHome(arg, after) {
     return `${head}${start}<div class="card empty"><p><b>Inga pass loggade än</b></p><p>Starta ditt första pass så fylls översikten på med statistik.</p></div>`;
   }
 
+  // ----- Right now: the last 12 weeks -----
   const weeks = lastWeeks(12);
-  const first = weeks[0].t;
   for (const w of ws) {
-    if (w.start < first) continue;
+    if (w.start < weeks[0].t) break;
     const wk = weeks.find((x) => x.t === weekStart(w.start));
     if (wk) { wk.n++; wk.vol += workoutStats(w).vol; }
   }
   const cur = weeks[11], prev = weeks[10];
-
   // Consecutive weeks with at least one workout (the current week may still be empty)
-  const active = new Set(ws.map((w) => weekStart(w.start)));
+  const activeWeeks = new Set(ws.map((w) => weekStart(w.start)));
   let streak = 0;
   const d = new Date(weekStart(Date.now()));
-  if (!active.has(d.getTime())) d.setDate(d.getDate() - 7);
-  while (active.has(d.getTime())) { streak++; d.setDate(d.getDate() - 7); }
+  if (!activeWeeks.has(d.getTime())) d.setDate(d.getDate() - 7);
+  while (activeWeeks.has(d.getTime())) { streak++; d.setDate(d.getDate() - 7); }
+  const weekBars = weeks.map((w) => ({ label: 'v' + isoWeek(w.t), v: w.n, tip: `Vecka ${isoWeek(w.t)}<br><b>${w.n} pass</b> · ${fmt(Math.round(w.vol))} kg` }));
+  after.push(() => barChart($('#c-week'), weekBars, { integer: true }));
 
-  const vol = ui.metric === 'vol';
-  const bars = weeks.map((w) => ({
-    label: 'v' + isoWeek(w.t),
-    v: vol ? Math.round(w.vol) : w.n,
-    tip: `Vecka ${isoWeek(w.t)}<br><b>${vol ? fmt(Math.round(w.vol)) + ' kg' : w.n + ' pass'}</b>`,
-  }));
-  after.push(() => barChart($('#c-week'), bars, { integer: !vol }));
+  // ----- Statistics for the chosen period: all time or one year -----
+  const years = [...new Set(ws.map((w) => new Date(w.start).getFullYear()))].sort((a, b) => b - a);
+  if (ui.period !== 'all' && !years.includes(+ui.period)) ui.period = 'all';
+  const year = ui.period === 'all' ? null : +ui.period;
+  const inPeriod = (t) => !year || new Date(t).getFullYear() === year;
+  const P = ws.filter((w) => inPeriod(w.start));
+  const periodName = year ? String(year) : 'All time';
 
-  // Exercises with history, most trained first
-  const counts = new Map();
-  for (const w of ws) for (const e of w.entries) counts.set(e.exId, (counts.get(e.exId) || 0) + 1);
-  const trained = [...counts.keys()].sort((a, b) => counts.get(b) - counts.get(a));
-  if (!counts.has(ui.exId)) ui.exId = trained[0];
-  const hist = exHistory(ui.exId);
+  const buckets = year
+    ? MONTHS.map((m) => ({ label: m, name: `${m} ${year}`, n: 0, vol: 0 }))
+    : [...years].reverse().map((y) => ({ label: String(y), name: String(y), y, n: 0, vol: 0 }));
+  const groupSets = new Map(), exStats = new Map(), weekdays = Array(7).fill(0);
+  let dur = 0, sets = 0, reps = 0, vol = 0;
+  const top = { vol: null, sets: null, dur: null };
+  const keepMax = (key, w, v) => { if (v > 0 && (!top[key] || v > top[key].v)) top[key] = { w, v }; };
+  for (const w of P) {
+    let wSets = 0, wVol = 0;
+    for (const e of w.entries) {
+      let n = 0;
+      for (const s of e.sets) if (validSet(s)) { n++; reps += s.r; wVol += Math.max(0, s.w || 0) * s.r; }
+      wSets += n;
+      const group = (exById(e.exId) || { group: 'Övrigt' }).group;
+      groupSets.set(group, (groupSets.get(group) || 0) + n);
+      const x = exStats.get(e.exId) || exStats.set(e.exId, { sets: 0, pass: 0 }).get(e.exId);
+      x.sets += n;
+      x.pass++;
+    }
+    const wDur = w.end ? w.end - w.start : 0, date = new Date(w.start);
+    dur += wDur; sets += wSets; vol += wVol;
+    weekdays[(date.getDay() + 6) % 7]++;
+    const b = year ? buckets[date.getMonth()] : buckets.find((x) => x.y === date.getFullYear());
+    b.n++; b.vol += wVol;
+    keepMax('vol', w, wVol); keepMax('sets', w, wSets); keepMax('dur', w, wDur);
+  }
 
-  const prs = trained.slice(0, 6).map((id) => {
-    const h = exHistory(id);
-    if (!h.length) return '';
-    const best = h.reduce((a, b) => (b.e1 > a.e1 || (b.e1 === a.e1 && b.reps > a.reps) ? b : a));
-    return `<a class="item" href="#/exercise/${id}"><div class="main"><div>${esc(exName(id))}</div><div class="muted">${fmtDate(best.t)}</div></div><div class="side">${setText(best.best, id)}</div></a>`;
-  }).join('');
+  // Average per week over the part of the period that has passed since the first workout ever
+  const first = ws[ws.length - 1].start;
+  const from = year ? Math.max(new Date(year, 0, 1).getTime(), first) : first;
+  const to = year ? Math.min(new Date(year + 1, 0, 1).getTime(), Date.now()) : Date.now();
+  const perWeek = P.length / Math.max(1, (to - from) / (7 * DAY));
+  // Longest run of consecutive weeks with a workout inside the period
+  let longest = 0, run = 0, last = null;
+  for (const t of [...new Set(P.map((w) => weekStart(w.start)))].sort((a, b) => a - b)) {
+    const before = new Date(t);
+    before.setDate(before.getDate() - 7);
+    run = last === before.getTime() ? run + 1 : 1;
+    longest = Math.max(longest, run);
+    last = t;
+  }
 
-  // Estimated 1RM (Epley) from the best set ever, for the most trained weighted exercises
+  const byVol = ui.metric === 'vol';
+  const bars = buckets.map((b) => ({ label: b.label, v: byVol ? Math.round(b.vol) : b.n, tip: `${b.name}<br><b>${byVol ? fmt(Math.round(b.vol)) + ' kg' : b.n + ' pass'}</b>` }));
+  after.push(() => barChart($('#c-period'), bars, { integer: !byVol, every: 1 }));
+  const dayBars = weekdays.map((n, i) => ({ label: WEEKDAYS[i], v: n, tip: `${WEEKDAYS[i]}<br><b>${n} pass</b> · ${Math.round((n / P.length) * 100)} %` }));
+  after.push(() => barChart($('#c-days'), dayBars, { integer: true, every: 1 }));
+
+  const groupMax = Math.max(...groupSets.values(), 1);
+  const groups = [...groupSets].sort((a, b) => b[1] - a[1]).map(([g, n]) => `<div class="hbar">
+      <span>${esc(g)}</span><span class="hbar-track"><span class="hbar-fill" style="width:${(n / groupMax) * 100}%"></span></span>
+      <span class="hbar-val">${fmt(n)} <span class="muted">${Math.round((n / (sets || 1)) * 100)} %</span></span></div>`).join('');
+
+  // Exercises in the period, most trained first; their history is limited to the period
+  const trained = [...exStats.keys()].sort((a, b) => exStats.get(b).pass - exStats.get(a).pass || exStats.get(b).sets - exStats.get(a).sets);
+  const cache = new Map();
+  const hist = (id) => cache.get(id) || cache.set(id, exHistory(id).filter((h) => inPeriod(h.t))).get(id);
+  if (!exStats.has(ui.exId)) ui.exId = trained[0];
+
+  const topExercises = trained.slice(0, 8).map((id) => `<a class="item" href="#/exercise/${id}"><div class="main"><div>${esc(exName(id))}</div><div class="muted">${esc((exById(id) || { group: '' }).group)}</div></div><div class="side">${exStats.get(id).pass} pass<br><span class="muted">${exStats.get(id).sets} set</span></div></a>`).join('');
+
+  // Estimated 1RM (Epley) from the best set in the period, for the most trained weighted exercises
   const oneRm = trained.filter((id) => !isBW(id)).slice(0, 8).map((id) => {
-    const h = exHistory(id);
+    const h = hist(id);
     const best = h.length && h.reduce((a, b) => (b.e1 > a.e1 ? b : a));
     if (!best || !best.e1) return '';
     return `<a class="item" href="#/exercise/${id}"><div class="main"><div>${esc(exName(id))}</div><div class="muted">${setText(best.best, id)} · ${fmtDate(best.t)}</div></div><div class="side"><b>${fmt(Math.round(best.e1 * 10) / 10)} kg</b></div></a>`;
   }).join('');
 
+  const prs = trained.slice(0, 8).map((id) => {
+    const h = hist(id);
+    if (!h.length) return '';
+    const best = h.reduce((a, b) => (b.e1 > a.e1 || (b.e1 === a.e1 && b.reps > a.reps) ? b : a));
+    return `<a class="item" href="#/exercise/${id}"><div class="main"><div>${esc(exName(id))}</div><div class="muted">${fmtDate(best.t)}</div></div><div class="side">${setText(best.best, id)}</div></a>`;
+  }).join('');
+
+  const highlight = (label, x, value) => (x ? `<a class="item" href="#/history/${x.w.id}"><div class="main"><div>${label}</div><div class="muted">${esc(x.w.name)} · ${fmtDate(x.w.start)}</div></div><div class="side"><b>${value(x.v)}</b></div></a>` : '');
+  const highlights = highlight('Störst volym i ett pass', top.vol, (v) => fmt(Math.round(v)) + ' kg')
+    + highlight('Flest set i ett pass', top.sets, (v) => v + ' set')
+    + highlight('Längsta pass', top.dur, fmtDur);
+
   return `${head}${start}
-    <div class="tiles">
-      <div class="card tile"><div class="label">Pass denna vecka</div><div class="value">${cur.n}</div><div class="muted">Förra veckan: ${prev.n}</div></div>
-      <div class="card tile"><div class="label">Volym denna vecka</div><div class="value">${compact(Math.round(cur.vol))} <small>kg</small></div><div class="muted">Förra veckan: ${compact(Math.round(prev.vol))} kg</div></div>
-      <div class="card tile"><div class="label">Pass totalt</div><div class="value">${ws.length}</div></div>
-      <div class="card tile"><div class="label">Veckor i rad</div><div class="value">${streak}</div></div>
+    <div class="tiles three">
+      ${tile('Pass i veckan', cur.n, `Förra: ${prev.n}`)}
+      ${tile('Volym i veckan', tons(cur.vol), `Förra: ${compact(Math.round(prev.vol))} kg`)}
+      ${tile('Veckor i rad', streak)}
     </div>
     <div class="card">
-      <div class="card-head"><h2>${vol ? 'Volym per vecka (kg)' : 'Pass per vecka'}</h2>
-        <div class="seg"><button data-act="metric" data-v="n" class="${vol ? '' : 'on'}">Pass</button><button data-act="metric" data-v="vol" class="${vol ? 'on' : ''}">Volym</button></div>
-      </div>
+      <h2>Pass per vecka</h2>
+      <p class="muted" style="margin:-6px 0 6px">Senaste 12 veckorna</p>
       <div class="chart" id="c-week"></div>
-      ${tableView(['Vecka', vol ? 'Volym (kg)' : 'Pass'], [...bars].reverse().map((b) => [b.label, fmt(b.v)]))}
+      ${tableView(['Vecka', 'Pass'], [...weekBars].reverse().map((b) => [b.label, b.v]))}
     </div>
+
+    <h2 class="section">Statistik</h2>
+    <div class="chips sticky">
+      ${['all', ...years].map((y) => `<button class="chip${String(y) === String(ui.period) ? ' on' : ''}" data-act="period" data-v="${y}">${y === 'all' ? 'All time' : y}</button>`).join('')}
+    </div>
+    <div class="tiles">
+      ${tile('Pass', fmt(P.length), `${fmt(Math.round(perWeek * 10) / 10)} per vecka i snitt`)}
+      ${tile('Träningstid', `${fmt(Math.round(dur / 36e5))} <small>h</small>`, P.length ? `${fmtDur(dur / P.length)} per pass` : '')}
+      ${tile('Total volym', tons(vol), P.length ? `${compact(Math.round(vol / P.length))} kg per pass` : '')}
+      ${tile('Set', fmt(sets), P.length ? `${fmt(Math.round((sets / P.length) * 10) / 10)} per pass` : '')}
+      ${tile('Reps', fmt(reps), sets ? `${fmt(Math.round((reps / sets) * 10) / 10)} per set` : '')}
+      ${tile('Olika övningar', exStats.size)}
+      ${tile('Aktiva veckor', new Set(P.map((w) => weekStart(w.start))).size, `av ${Math.max(1, Math.round((to - from) / (7 * DAY)))}`)}
+      ${tile('Längsta svit', `${longest} <small>veckor</small>`, 'i rad med pass')}
+    </div>
+    <div class="card">
+      <div class="card-head"><h2>${byVol ? 'Volym' : 'Pass'} per ${year ? 'månad' : 'år'}${byVol ? ' (kg)' : ''}</h2>
+        <div class="seg"><button data-act="metric" data-v="n" class="${byVol ? '' : 'on'}">Pass</button><button data-act="metric" data-v="vol" class="${byVol ? 'on' : ''}">Volym</button></div>
+      </div>
+      <div class="chart" id="c-period"></div>
+      ${tableView([year ? 'Månad' : 'År', byVol ? 'Volym (kg)' : 'Pass'], bars.map((b) => [b.label, fmt(b.v)]))}
+    </div>
+    <div class="card"><h2>Set per muskelgrupp</h2>${groups}</div>
+    <div class="card">
+      <h2>Pass per veckodag</h2>
+      <div class="chart" id="c-days"></div>
+      ${tableView(['Dag', 'Pass'], dayBars.map((b) => [b.label, b.v]))}
+    </div>
+    <div class="card"><h2>Mest körda övningar</h2><div class="list">${topExercises}</div></div>
     <div class="card">
       <h2>Styrkeutveckling</h2>
       <select data-ui="exId" aria-label="Övning">${trained.map((id) => `<option value="${id}"${id === ui.exId ? ' selected' : ''}>${esc(exName(id))}</option>`).join('')}</select>
       <div style="height:10px"></div>
-      ${hist.length ? progressChart(ui.exId, hist, after) : ''}
+      ${hist(ui.exId).length ? progressChart(ui.exId, hist(ui.exId), after) : ''}
     </div>
-    ${oneRm ? `<div class="card"><h2>Beräknat 1RM</h2><p class="muted" style="margin:-6px 0 4px">Uppskattat max för 1 rep, räknat på ditt bästa set</p><div class="list">${oneRm}</div></div>` : ''}
-    <div class="card"><h2>Personbästa</h2><div class="list">${prs}</div></div>
+    ${oneRm ? `<div class="card"><h2>Beräknat 1RM</h2><p class="muted" style="margin:-6px 0 4px">Uppskattat max för 1 rep, räknat på bästa set ${year ? 'under ' + year : 'någonsin'}</p><div class="list">${oneRm}</div></div>` : ''}
+    <div class="card"><h2>Bästa set</h2><p class="muted" style="margin:-6px 0 4px">${periodName}</p><div class="list">${prs}</div></div>
+    ${highlights ? `<div class="card"><h2>Höjdpunkter</h2><p class="muted" style="margin:-6px 0 4px">${periodName}</p><div class="list">${highlights}</div></div>` : ''}
     <div class="card"><div class="card-head"><h2>Senaste pass</h2><a class="link" href="#/history">Visa alla</a></div><div class="list">${ws.slice(0, 3).map(workoutItem).join('')}</div></div>`;
 }
 
@@ -801,7 +893,7 @@ function importStrengthLog(text, auto) {
 // The StrengthLog history shipped with the app is loaded once per device and once more whenever
 // SEED.version changes (the file gets a new name so the offline cache cannot serve the old one).
 // The flag lives outside the app data so that deleting all data does not bring the history back.
-const SEED = { key: 'gymlogg.seeded', version: '2', file: 'strengthlog-2.csv' };
+const SEED = { key: 'gymlogg.seeded', version: '3', file: 'strengthlog-3.csv' };
 function seedHistory() {
   if (localStorage.getItem(SEED.key) === SEED.version) return;
   fetch(SEED.file)
@@ -901,6 +993,10 @@ const ACTIONS = {
   },
   metric(el) {
     ui.metric = el.dataset.v;
+    render();
+  },
+  period(el) {
+    ui.period = el.dataset.v;
     render();
   },
   'del-workout'(el) {
