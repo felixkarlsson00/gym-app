@@ -6,32 +6,50 @@ const KEY = 'gymlogg.v1';
 const GROUPS = ['Bröst', 'Rygg', 'Ben', 'Axlar', 'Armar', 'Bål', 'Övrigt'];
 // A trailing * marks a bodyweight exercise: the weight field is extra load (belt/vest), default 0.
 const DEFAULTS = {
-  'Bröst': ['Bench Press', 'Incline Bench Press', 'Dumbbell Bench Press', 'Incline Dumbbell Press', 'Dumbbell Fly', 'Cable Fly',
-    'High-to-Low Cable Fly', 'Low-to-High Cable Fly', 'Machine Chest Press', 'Pec Deck', 'Dips*', 'Ring Dips*', 'Push-Up*'],
-  'Rygg': ['Deadlift', 'Pull-Up*', 'Chin-Up*', 'Neutral-Grip Pull-Up*', 'Muscle-Up*', 'Barbell Row', 'Dumbbell Row', 'T-Bar Row',
-    'Lat Pulldown', 'Seated Cable Row', 'Single-Arm Cable Row', 'Straight-Arm Pulldown', 'Inverted Row*', 'Back Extension*', 'Dumbbell Shrug'],
-  'Ben': ['Squat', 'Front Squat', 'Goblet Squat', 'Leg Press', 'Romanian Deadlift', 'Dumbbell Romanian Deadlift', 'Bulgarian Split Squat',
-    'Lunge', 'Walking Lunge', 'Leg Curl', 'Leg Extension', 'Hip Thrust', 'Calf Raise', 'Cable Pull-Through', 'Pistol Squat*', 'Nordic Curl*'],
-  'Axlar': ['Overhead Press', 'Dumbbell Shoulder Press', 'Arnold Press', 'Dumbbell Lateral Raise', 'Cable Lateral Raise',
-    'Dumbbell Front Raise', 'Face Pull', 'Reverse Fly', 'Cable Reverse Fly', 'Pike Push-Up*', 'Handstand Push-Up*'],
-  'Armar': ['Barbell Curl', 'Dumbbell Curl', 'Hammer Curl', 'Incline Dumbbell Curl', 'Cable Curl', 'Preacher Curl', 'Concentration Curl',
-    'Triceps Pushdown', 'Rope Pushdown', 'Overhead Cable Triceps Extension', 'Dumbbell Overhead Triceps Extension', 'Skull Crusher',
-    'Close-Grip Bench Press', 'Bench Dips*', 'Diamond Push-Up*'],
-  'Bål': ['Plank*', 'Hanging Leg Raise*', 'Hanging Knee Raise*', 'Toes-to-Bar*', 'Cable Crunch', 'Cable Woodchopper', 'Ab Wheel Rollout*',
-    'Sit-Up*', 'Russian Twist*', 'L-Sit*', 'Dragon Flag*'],
+  'Bröst': ['Bench Press', 'Incline Bench Press', 'Smith Machine Incline Bench Press', 'Dumbbell Chest Press', 'Incline Dumbbell Press',
+    'Dumbbell Fly', 'Cable Fly', 'Standing Cable Chest Fly (Upper Position)', 'Low-to-High Cable Fly', 'Seated Cable Chest Fly',
+    'Cable Chest Press', 'Machine Chest Press', 'Machine Chest Fly', 'Dips*', 'Ring Dips*', 'Machine Dip', 'Push-Up*'],
+  'Rygg': ['Deadlift', 'Pull-Up*', 'Chin-Up*', 'Neutral-Grip Pull-Up*', 'Assisted Pull-Up*', 'Muscle-Up*', 'Barbell Row', 'Pendlay Row',
+    'Seal Row', 'Dumbbell Row', 'T-Bar Row', 'Lat Pulldown', 'Machine Lat Pulldown', 'Close-Grip Lat Pulldown', 'Narrow Grip Pulldown',
+    'One-Arm Lat Pulldown', 'Straight Arm Lat Pulldown', 'Seated Cable Row', 'Cable Close-Grip Seated Row', 'Cable Wide Grip Seated Row',
+    'One-Arm Cable Row', 'Seated Machine Row', 'High Row', 'High Row End High', 'Inverted Row*', 'Back Extension*', 'Dumbbell Shrug'],
+  'Ben': ['Squat', 'Front Squat', 'Goblet Squat', 'Smith Machine Squat', 'Hack Squat Machine', 'Leg Press', 'Seated Leg Press',
+    'Romanian Deadlift', 'Dumbbell Romanian Deadlift', 'Bulgarian Split Squat', 'Dumbbell Bulgarian Split Squat',
+    'Smith Machine Bulgarian Split Squat', 'Lunge', 'Barbell Lunge', 'Dumbbell Lunge', 'Barbell Walking Lunges', 'Dumbbell Walking Lunges',
+    'Lying Leg Curl', 'Seated Leg Curl', 'Kneeling One Leg Curl', 'Leg Extension', 'Hip Thrust', 'Hip Thrust Machine',
+    'Hip Abduction Machine', 'Hip Adduction Machine', 'Standing Calf Raise', 'Seated Calf Raise', 'Cable Pull Through',
+    'Glute Ham Raise*', 'Pistol Squat*', 'Nordic Curl*'],
+  'Axlar': ['Overhead Press', 'Seated Barbell Overhead Press', 'Bar Shoulder Press', 'Dumbbell Shoulder Press', 'Seated Dumbbell Shoulder Press',
+    'Seated Smith Machine Shoulder Press', 'Machine Shoulder Press', 'Arnold Press', 'Dumbbell Lateral Raise', 'Cable Lateral Raise',
+    'Machine Lateral Raise', 'Dumbbell Front Raise', 'Barbell Front Raise', 'High Pull', 'Face Pull', 'Reverse Fly', 'Cable Reverse Fly',
+    'Reverse Machine Fly', 'Rear Delt Flies', 'Pike Push-Up*', 'Handstand Push-Up*'],
+  'Armar': ['Barbell Curl', 'Dumbbell Curl', 'Hammer Curl', 'Incline Dumbbell Curl', 'Cable Curl', 'Cable Curl With Bar', 'Cable Curl With Rope',
+    'Preacher Curl', 'Dumbbell Preacher Curl', 'Spider Curl', 'Concentration Curl', 'Machine Curl', 'Machine Biceps Curl',
+    'Triceps Pushdown With Bar', 'Triceps Pushdown With Rope', 'Overhead Cable Triceps Extension',
+    'Overhead Cable Triceps Extension from Upper Position', 'Dumbbell Overhead Triceps Extension', 'Barbell Standing Triceps Extension',
+    'Dumbbell Standing Triceps Extension', 'Skull Crusher', 'Close-Grip Bench Press', 'Bench Dips*', 'Diamond Push-Up*'],
+  'Bål': ['Plank*', 'Hanging Leg Raise*', 'Hanging Knee Raise*', 'Toes-to-Bar*', 'Cable Crunch', 'Machine Crunch', 'Cable Woodchopper',
+    'Ab Wheel Rollout*', 'Sit-Up*', 'Russian Twist*', 'L-Sit*', 'Dragon Flag*'],
 };
-// The first version shipped Swedish names; logged sets are moved over to the English ones.
+// Names used by earlier versions (first the Swedish list, then a few English ones that were
+// replaced by the StrengthLog names); logged sets are moved over to the current exercise.
 const RENAMED = {
-  'Bänkpress': 'Bench Press', 'Lutande bänkpress': 'Incline Bench Press', 'Hantelpress': 'Dumbbell Bench Press',
+  'Bänkpress': 'Bench Press', 'Lutande bänkpress': 'Incline Bench Press', 'Hantelpress': 'Dumbbell Chest Press',
   'Lutande hantelpress': 'Incline Dumbbell Press', 'Cable flyes': 'Cable Fly', 'Armhävningar': 'Push-Up', 'Marklyft': 'Deadlift',
   'Chins': 'Chin-Up', 'Pull-ups': 'Pull-Up', 'Skivstångsrodd': 'Barbell Row', 'Hantelrodd': 'Dumbbell Row', 'Latsdrag': 'Lat Pulldown',
   'Sittande kabelrodd': 'Seated Cable Row', 'Knäböj': 'Squat', 'Benpress': 'Leg Press', 'Rumänska marklyft': 'Romanian Deadlift',
-  'Bulgariska utfall': 'Bulgarian Split Squat', 'Utfall': 'Lunge', 'Lårcurl': 'Leg Curl', 'Benspark': 'Leg Extension',
-  'Vadpress': 'Calf Raise', 'Militärpress': 'Overhead Press', 'Axelpress med hantlar': 'Dumbbell Shoulder Press',
+  'Bulgariska utfall': 'Bulgarian Split Squat', 'Utfall': 'Lunge', 'Lårcurl': 'Lying Leg Curl', 'Benspark': 'Leg Extension',
+  'Vadpress': 'Standing Calf Raise', 'Militärpress': 'Overhead Press', 'Axelpress med hantlar': 'Dumbbell Shoulder Press',
   'Sidolyft': 'Dumbbell Lateral Raise', 'Face pulls': 'Face Pull', 'Omvända flyes': 'Reverse Fly', 'Bicepscurl': 'Dumbbell Curl',
   'Hammercurl': 'Hammer Curl', 'Skivstångscurl': 'Barbell Curl', 'Skullcrushers': 'Skull Crusher', 'Smal bänkpress': 'Close-Grip Bench Press',
   'Plankan': 'Plank', 'Hängande benlyft': 'Hanging Leg Raise', 'Ab wheel': 'Ab Wheel Rollout',
+  'Dumbbell Bench Press': 'Dumbbell Chest Press', 'High-to-Low Cable Fly': 'Standing Cable Chest Fly (Upper Position)',
+  'Pec Deck': 'Machine Chest Fly', 'Single-Arm Cable Row': 'One-Arm Cable Row', 'Straight-Arm Pulldown': 'Straight Arm Lat Pulldown',
+  'Walking Lunge': 'Dumbbell Walking Lunges', 'Leg Curl': 'Lying Leg Curl', 'Calf Raise': 'Standing Calf Raise',
+  'Triceps Pushdown': 'Triceps Pushdown With Bar', 'Rope Pushdown': 'Triceps Pushdown With Rope',
 };
+// StrengthLog names that are the same exercise as one in the list above
+const SL_ALIAS = { 'bar dip': 'Dips', 'bar muscle-up': 'Muscle-Up', 'straight arm pulldowns': 'Straight Arm Lat Pulldown' };
 
 const slug = (s) => 'x-' + s.toLowerCase().replace(/[^a-z0-9åäö]+/g, '-');
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
@@ -96,12 +114,13 @@ const sorted = () => [...S.workouts].sort((a, b) => b.start - a.start);
 const validSet = (s) => s.r > 0;
 const e1rm = (s) => (s.r === 1 ? s.w || 0 : (s.w || 0) * (1 + s.r / 30)); // Epley
 const isBW = (id) => !!(exById(id) || {}).bw;
-const setText = (s, exId) => (isBW(exId) ? `BW${s.w ? ' +' + fmt(s.w) + ' kg' : ''} × ${s.r}` : s.w ? `${fmt(s.w)} kg × ${s.r}` : `${s.r} reps`);
+const setText = (s, exId) => (isBW(exId) ? `BW${s.w ? (s.w > 0 ? ' +' : ' ') + fmt(s.w) + ' kg' : ''} × ${s.r}` : s.w ? `${fmt(s.w)} kg × ${s.r}` : `${s.r} reps`);
 
 function workoutStats(w) {
   let sets = 0, vol = 0;
-  for (const e of w.entries) for (const s of e.sets) if (validSet(s)) { sets++; vol += (s.w || 0) * s.r; }
-  return { sets, vol, dur: (w.end || Date.now()) - w.start };
+  for (const e of w.entries) for (const s of e.sets) if (validSet(s)) { sets++; vol += Math.max(0, s.w || 0) * s.r; }
+  // Imported workouts can lack a trustworthy end time
+  return { sets, vol, dur: w.end ? w.end - w.start : w === S.active ? Date.now() - w.start : null };
 }
 
 function fmtDate(ts, long) {
@@ -112,6 +131,7 @@ function fmtDate(ts, long) {
 }
 const shortDate = (ts) => new Date(ts).toLocaleDateString('sv-SE', { day: 'numeric', month: 'short' });
 function fmtDur(ms) {
+  if (ms == null) return '–';
   const min = Math.max(1, Math.round(ms / 60000));
   return min >= 60 ? `${Math.floor(min / 60)} h ${min % 60} min` : `${min} min`;
 }
@@ -155,7 +175,7 @@ function exHistory(id) {
       let best = null, vol = 0, reps = 0;
       for (const s of e.sets) {
         if (!validSet(s)) continue;
-        vol += (s.w || 0) * s.r;
+        vol += Math.max(0, s.w || 0) * s.r;
         reps = Math.max(reps, s.r);
         if (!best || score(s) > score(best) || (score(s) === score(best) && s.r > best.r)) best = s;
       }
@@ -357,7 +377,7 @@ function workoutItem(w) {
   const names = w.entries.map((e) => exName(e.exId)).join(', ');
   return `<a class="item" href="#/history/${w.id}">
     <div class="main"><div><b>${esc(w.name)}</b></div><div class="muted">${fmtDate(w.start)} · ${esc(names)}</div></div>
-    <div class="side">${fmtDur(st.dur)}<br><span class="muted">${st.sets} set · ${compact(Math.round(st.vol))} kg</span></div>
+    <div class="side">${st.dur == null ? '' : fmtDur(st.dur) + '<br>'}<span class="muted">${st.sets} set · ${compact(Math.round(st.vol))} kg</span></div>
   </a>`;
 }
 
@@ -494,7 +514,7 @@ function viewHistory(id) {
       ${w.entries.map((e, k) => `<div class="card">
         <div class="card-head"><h2><a href="#/exercise/${e.exId}">${esc(exName(e.exId))}</a></h2><a class="chev" href="#/exercise/${e.exId}">›</a></div>
         <table><tr><th>Set</th><th class="num">${isBW(e.exId) ? 'Extra kg' : 'Kg'}</th><th class="num">Reps</th></tr>
-        ${e.sets.map((s, i) => `<tr><td>${i + 1} ${badgeHtml(badges[k][i])}</td><td class="num">${isBW(e.exId) ? (s.w ? '+' + fmt(s.w) : 'BW') : fmt(s.w || 0)}</td><td class="num">${s.r}</td></tr>`).join('')}</table>
+        ${e.sets.map((s, i) => `<tr><td>${i + 1} ${badgeHtml(badges[k][i])}</td><td class="num">${isBW(e.exId) ? (s.w ? (s.w > 0 ? '+' : '') + fmt(s.w) : 'BW') : fmt(s.w || 0)}</td><td class="num">${s.r}</td></tr>`).join('')}</table>
       </div>`).join('')}
       <button class="btn ghost" data-act="start" data-from="${w.id}">Kör passet igen</button>
       <button class="btn danger" data-act="del-workout" data-id="${w.id}">Ta bort pass</button>`;
@@ -576,6 +596,11 @@ function viewSettings() {
       <p class="sub" style="margin-bottom:12px">All data sparas lokalt i den här webbläsaren. Exportera en fil då och då så att du kan återställa eller flytta till en annan telefon.</p>
       <div class="row"><button class="btn ghost" data-act="export">Exportera</button><button class="btn ghost" data-act="import">Importera</button></div>
       <input type="file" id="import-file" accept="application/json,.json" hidden>
+    </div>
+    <div class="card"><h2>Importera från StrengthLog</h2>
+      <p class="sub" style="margin-bottom:12px">Välj CSV-filen du exporterat från StrengthLog. Passen läggs till i din historik; pass som redan importerats hoppas över.</p>
+      <button class="btn ghost" data-act="import-sl">Välj CSV-fil</button>
+      <input type="file" id="sl-file" accept=".csv,text/csv,text/comma-separated-values" hidden>
     </div>
     <div class="card"><h2>Data</h2>
       <p class="sub">${S.workouts.length} pass · ${S.exercises.length} övningar</p>
@@ -694,6 +719,69 @@ async function importData(file) {
   go('#/home');
 }
 
+function parseCsv(text) {
+  const rows = [];
+  let row = [], cell = '', quoted = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (quoted) {
+      if (c !== '"') cell += c;
+      else if (text[i + 1] === '"') { cell += '"'; i++; }
+      else quoted = false;
+    } else if (c === '"') quoted = true;
+    else if (c === ',') { row.push(cell); cell = ''; }
+    else if (c === '\n') { row.push(cell); rows.push(row); row = []; cell = ''; }
+    else if (c !== '\r') cell += c;
+  }
+  if (cell || row.length) { row.push(cell); rows.push(row); }
+  return rows;
+}
+
+// StrengthLog CSV export: one row per set. Adds the workouts to the history (never replaces).
+function importStrengthLog(text) {
+  const rows = parseCsv(text.replace(/^﻿/, ''));
+  const head = rows.shift() || [];
+  const col = Object.fromEntries(head.map((h, i) => [h.trim(), i]));
+  if (['workout', 'start', 'exercise', 'reps'].some((c) => !(c in col))) return toast('Filen ser inte ut som en StrengthLog-export');
+  const get = (r, c) => (r[col[c]] || '').trim();
+  const num = (v) => (Number.isFinite(parseFloat(v)) ? parseFloat(v) : 0);
+  const have = new Set(S.workouts.map((w) => w.id));
+  const byName = new Map(S.exercises.map((e) => [e.name.toLowerCase(), e]));
+  const workouts = new Map();
+  let newExercises = 0;
+
+  for (const r of rows) {
+    const start = parseInt(get(r, 'start'), 10), reps = parseInt(get(r, 'reps'), 10), raw = get(r, 'exercise');
+    if (!start || !raw || !(reps > 0) || have.has('sl-' + start)) continue;
+    const extra = get(r, 'extraWeight'), assist = get(r, 'assistingWeight');
+    const name = SL_ALIAS[raw.toLowerCase()] || raw;
+    let ex = byName.get(name.toLowerCase());
+    if (!ex) {
+      ex = { id: 'c-' + uid(), name, group: 'Övrigt', custom: true, bw: !!(get(r, 'bodyweight') || extra || assist) };
+      S.exercises.push(ex);
+      byName.set(name.toLowerCase(), ex);
+      newExercises++;
+    }
+    let w = workouts.get(start);
+    if (!w) {
+      // Workouts left open in StrengthLog get an end time days later; treat anything over 5 h as unknown
+      const end = parseInt(get(r, 'end'), 10);
+      w = { id: 'sl-' + start, name: get(r, 'workout') || 'Pass', start, end: end > start && end - start <= 5 * 36e5 ? end : null, entries: [] };
+      workouts.set(start, w);
+    }
+    let entry = w.entries[w.entries.length - 1];
+    if (!entry || entry.exId !== ex.id) w.entries.push(entry = { exId: ex.id, sets: [] });
+    // Extra load on bodyweight lifts is positive, assistance negative
+    entry.sets.push({ w: extra ? num(extra) : assist ? -num(assist) : num(get(r, 'weight')), r: reps });
+  }
+
+  if (!workouts.size) return toast('Inga nya pass att importera');
+  S.workouts.push(...workouts.values());
+  save();
+  toast(`${workouts.size} pass importerade` + (newExercises ? ` · ${newExercises} nya övningar` : ''));
+  go('#/history');
+}
+
 const ACTIONS = {
   start: (el) => startWorkout(el.dataset.from),
   finish: finishWorkout,
@@ -790,6 +878,7 @@ const ACTIONS = {
   },
   export: exportData,
   import: () => $('#import-file').click(),
+  'import-sl': () => $('#sl-file').click(),
   wipe() {
     if (!confirm('Radera alla pass och egna övningar? Detta går inte att ångra.')) return;
     localStorage.removeItem(KEY);
@@ -822,6 +911,7 @@ document.addEventListener('change', (ev) => {
   const el = ev.target;
   if (el.dataset.ui === 'exId') { ui.exId = el.value; render(); }
   if (el.id === 'import-file' && el.files[0]) importData(el.files[0]);
+  if (el.id === 'sl-file' && el.files[0]) el.files[0].text().then(importStrengthLog);
 });
 
 document.addEventListener('focusin', (ev) => {
